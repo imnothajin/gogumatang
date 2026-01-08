@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고구 맛탕™ RPG: 챕터 1 확장판 (The Sewer Extended)</title>
+    <style>
+        /* 폰트: 둥근모꼴 (레트로 느낌) */
+        @font-face {
+            font-family: 'NeoDonggeunmo';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.3/NeoDunggeunmo.woff') format('woff');
+            font-weight: normal;
+            font-display: swap;
+        }
+
+        :root {
+            --game-width: 800px;
+            --game-height: 600px;
+            --bg-color: #000;
+            --highlight-color: #ffff00;
+            --hp-color: #ff3333;
+            --mp-color: #3388ff;
+        }
+
+        body {
+            margin: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'NeoDonggeunmo', monospace;
+            user-select: none;
+            color: white;
+        }
+
+        #game-screen {
+            width: var(--game-width);
+            height: var(--game-height);
+            background-color: var(--bg-color);
+            position: relative;
+            border: 4px solid #555;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+
+        .layer {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; display: none;
+        }
+
+        #bg-layer {
+            display: block;
+            background-size: 100% 100% !important;
+            background-position: center;
+            transition: opacity 0.5s;
+        }
+
+        /* --- Field --- */
+        #field-layer { z-index: 10; }
+        .sprite { position: absolute; transform-origin: center bottom; }
+        .sprite img { width: 100%; height: 100%; object-fit: contain; }
+        .object-label {
+            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); padding: 2px 5px; font-size: 12px; border-radius: 4px;
+            white-space: nowrap; text-shadow: 1px 1px 0 #000;
+        }
+
+        #char-layer { z-index: 20; transition: transform 0.3s; }
+        #char-img {
+            position: absolute; bottom: 0; left: 50%;
+            transform: translateX(-50%); height: 85%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+            display: none;
+        }
+
+        /* --- Battle --- */
+        #battle-layer { z-index: 50; background: rgba(0,0,0,0.6); pointer-events: auto; }
+        #battle-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: 100% 100% !important;
+            background-position: center; opacity: 0.5; z-index: -1;
+        }
+        
+        #enemy-area {
+            position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+            text-align: center; width: 400px;
+        }
+        #enemy-img { height: 250px; object-fit: contain; filter: drop-shadow(0 0 15px rgba(255,255,255,0.2)); transition: transform 0.2s; }
+        .enemy-shake { animation: shake 0.2s infinite; }
+
+        #enemy-hud { margin-top: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 8px; display: inline-block; }
+        .hp-bar-bg { width: 200px; height: 15px; background: #333; border: 2px solid white; margin-top: 5px; position: relative; }
+        .hp-bar-fill { height: 100%; background: var(--hp-color); width: 100%; transition: width 0.3s; }
+
+        #party-status {
+            position: absolute; top: 20px; left: 20px;
+            display: flex; gap: 15px;
+        }
+        .party-member-card {
+            width: 150px; background: rgba(0,0,0,0.8); border: 2px solid #777;
+            padding: 10px; font-size: 14px; position: relative; box-shadow: 2px 2px 0 #000;
+        }
+        .party-member-card.active-turn { border-color: var(--highlight-color); transform: translateY(-5px); background: rgba(50,50,50,0.9); }
+        .stat-row { display: flex; justify-content: space-between; margin-top: 4px; }
+        
+        #battle-menu-area {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 760px; height: 160px; 
+            display: flex; gap: 20px; justify-content: center;
+        }
+        #battle-main-menu, #battle-sub-menu {
+            background: #222; border: 4px solid white;
+            padding: 15px; box-shadow: 4px 4px 0 black;
+            width: 100%; display: grid; gap: 10px;
+        }
+        #battle-main-menu { grid-template-columns: 1fr 1fr; }
+        #battle-sub-menu { display: none; overflow-y: auto; align-content: start; grid-template-columns: 1fr; }
+        
+        .b-btn {
+            background: black; color: white; border: 2px solid #777;
+            padding: 10px; font-family: inherit; font-size: 22px; cursor: pointer;
+            text-align: center; transition: all 0.1s;
+        }
+        .b-btn:hover { background: #fff; color: #000; border-color: #fff; }
+        .b-btn:disabled { color: #555; border-color: #333; cursor: not-allowed; background: #111; }
+
+        /* --- UI & Dialogue --- */
+        #ui-layer { z-index: 100; pointer-events: none; }
+        #dialogue-box {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 200px;
+            background: black; border-top: 4px solid white;
+            padding: 30px; box-sizing: border-box; display: none; pointer-events: auto;
+        }
+        #speaker-name { font-size: 26px; color: var(--highlight-color); margin-bottom: 15px; }
+        #dialogue-text { font-size: 22px; line-height: 1.5; white-space: pre-wrap; }
+        
+        #intro-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: black; z-index: 200; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 50px; box-sizing: border-box;
+        }
+        .intro-text-p { font-size: 24px; color: #ccc; margin-bottom: 30px; opacity: 0; transition: opacity 2s; }
+        
+        #community-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 600px; height: 450px; background: white; color: black;
+            border: 2px solid #aaa; display: none; padding: 0; z-index: 200;
+            font-family: 'Gulim', 'Malgun Gothic', sans-serif; pointer-events: auto;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
+        }
+        .comm-header { background: #3b5998; color: white; padding: 8px; font-weight: bold; display: flex; justify-content: space-between; }
+        .comm-body { padding: 15px; }
+        .comm-title { font-size: 20px; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+        .comm-meta { font-size: 12px; color: #666; margin-bottom: 15px; }
+        .comm-content { font-size: 15px; line-height: 1.4; margin-bottom: 20px; min-height: 100px; }
+        .comm-reply-box { background: #f7f7f7; border: 1px solid #ddd; padding: 10px; font-size: 13px; }
+
+        .fx-flash { animation: flash 0.1s; }
+        @keyframes flash { 0% { filter: invert(0); } 50% { filter: invert(1); } 100% { filter: invert(0); } }
+        .fx-shake { animation: shake 0.4s; }
+        @keyframes shake { 0% {transform:translateX(0)} 25% {transform:translateX(-10px)} 75% {transform:translateX(10px)} 100% {transform:translateX(0)} }
+        
+        .damage-popup {
+            position: absolute; color: red; font-size: 40px; font-weight: bold;
+            text-shadow: 2px 2px 0 #fff; animation: popUp 1s forwards; z-index: 999;
+        }
+        @keyframes popUp { 0% {opacity:1; transform:translate(-50%,0)} 100% {opacity:0; transform:translate(-50%,-100px)} }
+
+        #start-screen {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: black; z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-screen">
+    <div id="bg-layer" class="layer"></div>
+    <div id="field-layer" class="layer"></div>
+    <div id="char-layer" class="layer"><img id="char-img" src=""></div>
+    
+    <div id="battle-layer" class="layer">
+        <div id="battle-bg"></div>
+        <div id="party-status"></div>
+        <div id="enemy-area">
+            <div id="enemy-hud">
+                <div id="enemy-name-disp" style="font-size: 18px;">몬스터</div>
+                <div class="hp-bar-bg"><div id="enemy-hp-bar" class="hp-bar-fill"></div></div>
+            </div>
+            <br><br>
+            <img id="enemy-img" src="">
+        </div>
+        <div id="battle-menu-area" style="display:none;">
+            <div id="battle-main-menu">
+                <button class="b-btn" onclick="BattleSys.selectAction('attack')">⚔️ 공격</button>
+                <button class="b-btn" onclick="BattleSys.selectAction('skill')">🔥 스킬</button>
+                <button class="b-btn" onclick="BattleSys.selectAction('item')">💊 아이템</button>
+                <button class="b-btn" onclick="BattleSys.selectAction('run')">🏃 도망</button>
+            </div>
+            <div id="battle-sub-menu"></div>
+        </div>
+    </div>
+
+    <div id="ui-layer" class="layer">
+        <div id="dialogue-box">
+            <div id="speaker-name"></div>
+            <div id="dialogue-text"></div>
+            <div style="text-align:right; font-size:14px; color:gray; margin-top:10px;">▼ (Z) 진행 / (X) 스킵</div>
+        </div>
+    </div>
+
+    <div id="intro-layer"></div>
+    
+    <div id="community-overlay">
+        <div class="comm-header">
+            <span>DC_INSIDE_SEWER_GALLERY</span>
+            <span style="cursor:pointer;" onclick="Game.closeCommunity()">[X]</span>
+        </div>
+        <div class="comm-body">
+            <div class="comm-title">야 내가 황아영 죽였냐</div>
+            <div class="comm-meta">작성자: ㅈㄴ좋아 좆로 | 2011.05.08 | 조회 523</div>
+            <div class="comm-content">
+                나 평양시 토트랜드 빅맘 트리오인데 맞짱깔사람@@@.<br>
+                좀비고 자유 3채널 비번 ㅈ가빈라덴 와라 야;;;;
+            </div>
+            <div class="comm-reply-box">
+                <div style="border-bottom:1px dotted #ccc; padding-bottom:5px; margin-bottom:5px;">
+                    <b>김파라과이마라탕게이</b> (115.23)
+                </div>
+                <div>야 나 주인공인데 너 주인공 버프로 죽여야겠냐??</div>
+            </div>
+        </div>
+        <div style="text-align:center; padding:10px;">
+            <button onclick="Game.closeCommunity()" style="padding:10px 20px;">[닫기]</button>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1 style="font-size: 50px; color: #ffff00; text-shadow: 4px 4px #ff0000;">고구 맛탕™ RPG</h1>
+        <p>챕터 1: The Sewer Extended (Ver 3.0)</p>
+        <br>
+        <button id="btn-start" style="padding: 15px 40px; font-size: 24px; font-family: inherit; cursor: pointer;">GAME START</button>
+        <p style="font-size: 12px; color: #888; margin-top:20px;">* 소리가 재생됩니다 *</p>
+    </div>
+</div>
+
+<script>
+// =========================================================================================
+// [ 0. SYSTEM SOUND ]
+// =========================================================================================
+const SoundGen = {
+    ctx: null,
+    init: () => {
+        window.AudioContext = window.AudioContext || window.webkitAudioContext;
+        SoundGen.ctx = new AudioContext();
+    },
+    playTone: (freq, type, duration, vol = 0.1) => {
+        if (!SoundGen.ctx) return;
+        if (SoundGen.ctx.state === 'suspended') SoundGen.ctx.resume();
+        const osc = SoundGen.ctx.createOscillator();
+        const gain = SoundGen.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, SoundGen.ctx.currentTime);
+        gain.gain.setValueAtTime(vol, SoundGen.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, SoundGen.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(SoundGen.ctx.destination);
+        osc.start();
+        osc.stop(SoundGen.ctx.currentTime + duration);
+    },
+    playTextSound: () => { SoundGen.playTone(700 + Math.random() * 100, 'square', 0.05, 0.05); },
+    playConfirmSound: () => {
+        SoundGen.playTone(880, 'sine', 0.1, 0.1); 
+        setTimeout(() => SoundGen.playTone(1760, 'sine', 0.1, 0.1), 50);
+    }
+};
+
+// =========================================================================================
+// [ 1. ASSET CONFIGURATION ]
+// =========================================================================================
+
+const ASSETS = {
+    img: {
+        'hero': 'assets/hero_img.png',
+        'marill_s': 'assets/marill_s.png',
+        'marill_base': 'assets/marill_base.png',
+        'marill_face': 'assets/marill_face.png',
+        'marill_omega': 'assets/marill_omega.png',
+        'flies': 'assets/flies_img.png',
+        'bg_sewer': 'assets/bg_sewer.png',
+        'bg_flower': 'assets/bg_flower.png',
+        'bg_flower1': 'assets/bg_flower1.png',
+        'item_phone': 'assets/item_phone.png',
+        'rat_merchant': 'assets/ww.webp', // Placeholder
+        'slime': 'assets/optimize.jpg',
+        'mouse': 'assets/mouse.png',
+        'cockroach': 'assets/images (23).jpg'
+    },
+    audio: {
+        'bgm_prologue': 'assets/bgm_prologue.mp3',
+        'truck': 'assets/sfx_truck.mp3',
+        'crash': 'assets/sfx_crash.mp3',
+        'rudebuster': 'assets/rudebuster.mp3',
+        'creepy': 'assets/undertale_creepy.mp3',
+        'once': 'assets/once.mp3',
+        'omega': 'assets/omega.mp3',
+        'ending': 'assets/dontforget.mp3'
+    }
+};
+
+// * Asset Getter Helper to fix the "ASSETS.img.xxx undefined" issue
+const getImg = (key) => ASSETS.img[key] || key;
+
+const DB = {
+    chars: {
+        'hero': { name: '좆로', hp: 200, mp: 50, atk: 30, img: 'hero', skills: ['headbutt'] },
+        'fly_ally': { name: '파아뤼체', hp: 80, mp: 20, atk: 15, img: 'flies', skills: ['fly_slap', 'wing_wind'] }
+    },
+    skills: {
+        'headbutt': { name: '대머리 박치기', cost: 10, power: 100, type: 'damage', desc: '강력한 박치기' },
+        'fly_slap': { name: '날개 싸대기', cost: 5, power: 50, type: 'damage', desc: '빠른 날개짓' },
+        'wing_wind': { name: '윙윙바람', cost: 10, power: 70, type: 'damage', desc: '바람 공격' }
+    },
+    items: {
+        'potion': { name: '감자탕', type: 'heal', value: 100, desc: '체력 100 회복' },
+        'cheese': { name: '썩은 치즈', type: 'heal', value: 50, desc: '체력 50 회복 (맛은 없다)' },
+        'bomb': { name: '사제 폭탄', type: 'damage', value: 150, desc: '적에게 150 데미지' }
+    },
+    enemies: {
+        'slime': { name: '하수구 슬라임', hp: 50, atk: 5, img: 'slime', exp: 10, id: 'slime' },
+        'flies': { name: '하수구 파리 군집', hp: 100, atk: 15, img: 'flies', exp: 50, id: 'flies' },
+        'cockroach': { name: '문지기 바퀴벌레', hp: 250, atk: 25, img: 'cockroach', exp: 100, id: 'cockroach' },
+        'marill_omega': { name: '오메가 마릴리', hp: 500, atk: 40, img: 'marill_omega', exp: 0, id: 'marill_omega' }
+    }
+};
+
+// =========================================================================================
+// [ 2. SCENARIO DATA ]
+// =========================================================================================
+
+const SCENARIOS = {
+    'intro': [
+        { type: 'bgm', src: 'bgm_prologue' },
+        { type: 'bg', src: 'black' },
+        { type: 'text', name: '황아영', text: '(독백) 내 이름은 황아영, 균샨대 ㅈ가빈심리학과 새내기지~' },
+        { type: 'text', name: '황아영', text: '칫, 교수님이 다음 주까지 조별과제 완성하라고 하는데...' },
+        { type: 'sfx', src: 'truck' },
+        { type: 'wait', time: 1000 },
+        { type: 'sfx', src: 'crash' },
+        { type: 'run', code: () => { document.getElementById('game-screen').classList.add('fx-flash'); } },
+        { type: 'wait', time: 500 },
+        { type: 'stopBgm' },
+        
+        { type: 'text', name: '???', text: '...은 영어로 익명의 바다소죠?' },
+        { type: 'run', code: () => Game.addPartyMember('hero') },
+        { type: 'char', src: 'hero' },
+        { type: 'text', name: '좆로', text: '아이1고난 황아영이 트럭에 치여버렸냐;;' },
+        { type: 'text', name: '좆로', text: '트럭 운전사가 나, ㅈㄴ좋아 좆로냐?' },
+        { type: 'text', name: '좆로', text: '야 근데 논란 피하기 위해서 시체 터지는 거 대신 그냥 이세계로 워프했다고 칠거다@@@' },
+        { type: 'text', name: '시스템', text: '이 글을 본 주인공2 김파라과이마라탕게이는 주인공1을 족치기 위해 움직이게 된다.', color: '#aaa' },
+        { type: 'goto', next: 'ch1_sewer_start' }
+    ],
+
+    'ch1_sewer_start': [
+        { type: 'bg', src: 'bg_sewer' },
+        { type: 'char', src: 'hero' },
+        { type: 'text', name: '좆로', text: '야 이거 대사창 왜 정상적으로 써져있냐????? 야 지리냐;;;;@@@@;;;;' },
+        { type: 'text', name: '좆로', text: '짭새들이 갑자기 뜨냐;; 어쩔 수 없이 도망 (별 2개;;;) 쳐야겠네 << 요이;' },
+        { type: 'text', name: '좆로', text: '어라, 저기 웬 쥐새끼가 장사를 하고 있냐?' },
+        { type: 'field', map: 'sewer_map_1' }
+    ],
+
+    'meet_merchant': [
+        { type: 'char', src: 'rat_merchant' },
+        { type: 'bg', src: 'mouse' },
+        { type: 'text', name: '쥐상인', text: '찍찍! 인간? 하수구에서 인간이라니! 찍!' },
+        { type: 'text', name: '좆로', text: '야 미키마우스 저작권 안 걸리냐??' },
+        { type: 'text', name: '쥐상인', text: '시끄럽고, 이거라도 가져가라 찍. 공짜는 아냐. 나중에 네 영혼을 줘.' },
+        { type: 'addItem', id: 'cheese', count: 2 },
+        { type: 'addItem', id: 'bomb', count: 1 },
+        { type: 'text', name: '시스템', text: '[썩은 치즈 x2], [사제 폭탄 x1]을 획득했다!' },
+        { type: 'text', name: '좆로', text: '개이득ㅋ 템창 든든하죠?' },
+        { type: 'bg', src: 'bg_sewer' },
+        { type: 'text', name: '좆로', text: '어라 뒤에서 뭔가 찐득한 게 다가오는데?' },
+        { type: 'battle', enemyId: 'slime', bg: 'bg_sewer', win: 'win_slime', bgm: 'rudebuster' }
+    ],
+
+    'win_slime': [
+        { type: 'stopBgm' },
+        { type: 'text', name: '좆로', text: '잡몹 수준 실화냐;; 몸풀기 개꿀.' },
+        { type: 'text', name: '시스템', text: '앞으로 나아가자. 바닥에 뭔가 떨어져 있다.' },
+        { type: 'field', map: 'sewer_map_2' }
+    ],
+
+    'find_phone': [
+        { type: 'text', name: '좆로', text: '하수구 탈출하려면 이거라도 써야겠지? 득템ㅋ' },
+        { type: 'addItem', id: 'phone', count: 1 },
+        { type: 'text', name: '좆로', text: '야 폰이 지 혼자 커뮤에 글을 싸지르냐;;;;;' },
+        { type: 'run', code: () => Game.openCommunity() }
+    ],
+
+    'after_community': [
+        { type: 'text', name: '좆로', text: '...나를 쫒는 주인공이 있다는 거네?' },
+        { type: 'text', name: '좆로', text: '어 ㅅㅂ 파리다. 야 개발자야, 파리 6마리 죽이는 미니게임 만들어라.' },
+        { type: 'battle', enemyId: 'flies', bg: 'bg_sewer', win: 'win_flies', bgm: 'rudebuster' }
+    ],
+
+    'win_flies': [
+        { type: 'stopBgm' },
+        { type: 'text', name: '좆로', text: '컷;;; 경험치 달달하죠?' },
+        { type: 'text', name: '파리', text: '형님! 살려십쇼! 저도 하수구 탈출하고 싶습니다!' },
+        { type: 'text', name: '좆로', text: '올ㅋ 너 내 동료가 되라.' },
+        { type: 'run', code: () => Game.addPartyMember('fly_ally') },
+        { type: 'text', name: '시스템', text: '파아뤼체가 파티에 합류했다!' },
+        { type: 'text', name: '파아뤼체', text: '형님, 저 앞을 거대한 바퀴벌레가 막고 있습니다!' },
+        { type: 'text', name: '좆로', text: '아오 징그러;; 세스코 불러라 야.' },
+        { type: 'field', map: 'sewer_map_3' }
+    ],
+
+    'meet_cockroach': [
+        { type: 'char', src: 'cockroach' },
+        { type: 'text', name: '문지기 바퀴', text: '키에에엑! 여기는 못 지나간다!' },
+        { type: 'text', name: '좆로', text: '야 비켜라 형 바쁘다.' },
+        { type: 'text', name: '문지기 바퀴', text: '통행료는 목숨이다!' },
+        { type: 'text', name: '좆로', text: '중간보스전이냐? 템 아끼지 말고 써야겠네.' },
+        { type: 'battle', enemyId: 'cockroach', bg: 'bg_sewer', win: 'win_cockroach', bgm: 'rudebuster' }
+    ],
+
+    'win_cockroach': [
+        { type: 'stopBgm' },
+        { type: 'char', src: 'hero' },
+        { type: 'text', name: '좆로', text: '후.. 맷집 좀 되네 저거.' },
+        { type: 'text', name: '파아뤼체', text: '형님! 출구입니다! 빛이 보입니다!' },
+        { type: 'field', map: 'sewer_map_cleared' }
+    ],
+
+    'meet_marill': [
+        { type: 'stopBgm' },
+        { type: 'bg', src: 'bg_flower' },
+        { type: 'char', src: 'marill_s' },
+        { type: 'text', name: '좆로', text: '어 ㅅㅂ ㅈㄴ 익숙한 실루엣이죠.' },
+        { type: 'text', name: '좆로', text: '자 좆로가 외치죠. "피;;@@@카츄;;"' },
+        { type: 'bgm', src: 'creepy' },
+        { type: 'bg', src: 'bg_flower1' },
+        { type: 'char', src: 'marill_base' },
+        { type: 'text', name: '좆로', text: 'ㅅㅂ 마릴리네? 끄@@지셈;' },
+        { type: 'text', name: '마릴리', text: '...' },
+        { type: 'text', name: '마릴리', text: '야 마릴리가 말합니다: 이 세상은 죽거나 죽이거냐죠??' },
+        { type: 'text', name: '좆로', text: '자 ㅅ@@ㅂ 잠깐만 발밑이 ㅈㄴ 노란꽃들이죠? 야 이거 최종보스전 시작이냐;;;;?' },
+        { type: 'run', code: () => Game.blueScreenEffect() }
+    ],
+
+    'fake_intro': [
+        { type: 'bgm', src: 'once' },
+        { type: 'run', code: () => Game.showFakeIntroText() }
+    ],
+
+    'marill_monologue': [
+        { type: 'bg', src: 'black' },
+        { type: 'char', src: 'marill_face' },
+        { type: 'text', name: '마릴리', text: '나야, 마릴리. 작은 쥐 마릴리!' },
+        { type: 'text', name: '마릴리', text: '너한테 정말 큰 빚을 졌어. 하수구의 벌레들을 싹 다 청소해줬더구나.' },
+        { type: 'text', name: '마릴리', text: '어쨌거나, 난 퍼ㄹ, 아니 파리의 영혼이 6개밖에 없거든. 파리 하나가 더 필요해... 그리고 신이 되는 거야.' },
+        { type: 'text', name: '마릴리', text: '대사 길어서 다 안읽을거다 야' },
+        { type: 'goto', next: 'execution_battle' }
+    ],
+
+    'execution_battle': [
+        { type: 'text', name: '시스템', text: '오메가 마릴리가 등장했다!' },
+        { type: 'battle', enemyId: 'marill_omega', bg: 'black', win: 'impossible', bgm: 'omega', scriptedDeath: false }
+    ],
+
+    'after_death': [
+        { type: 'stopBgm' },
+        { type: 'bg', src: 'black' },
+        { type: 'char', src: null },
+        { type: 'text', name: '좆로', text: '꿹@@!!!! 이거 밸런스 꼬라지 봐라!!!' },
+        { type: 'text', name: '좆로', text: '...라고 외치고 쳐맞아서 기절했냐?' },
+        { type: 'text', name: '좆로', text: '눈 떠보니까 과거로 귀환하냐...??' },
+        { type: 'run', code: () => Game.showCredits() }
+    ]
+};
+
+// =========================================================================================
+// [ 3. ENGINE CORE ]
+// =========================================================================================
+
+const AudioSys = {
+    bgm: new Audio(),
+    currentTrack: null,
+    
+    init: () => {
+        AudioSys.bgm.loop = true;
+        AudioSys.bgm.volume = 0.5;
+    },
+    playBGM: (key) => {
+        if(AudioSys.currentTrack === key) return;
+        if(!ASSETS.audio[key]) return console.error('Audio not found:', key);
+        
+        AudioSys.bgm.src = ASSETS.audio[key];
+        AudioSys.bgm.play().catch(e => console.log('Playback prevented:', e));
+        AudioSys.currentTrack = key;
+    },
+    stopBGM: () => {
+        AudioSys.bgm.pause();
+        AudioSys.currentTrack = null;
+    },
+    playSFX: (key) => {
+        if(!ASSETS.audio[key]) return;
+        const sfx = new Audio(ASSETS.audio[key]);
+        sfx.volume = 0.7;
+        sfx.play().catch(e => {});
+    }
+};
+
+const Game = {
+    state: 0, 
+    party: [],
+    inventory: {}, // { 'item_id': count }
+    scriptedDeathScenario: null,
+
+    addPartyMember: (charId) => {
+        const data = DB.chars[charId];
+        Game.party.push({ ...data, maxHp: data.hp, maxMp: data.mp, id: charId });
+    },
+    addItem: (itemId, count) => {
+        if(!Game.inventory[itemId]) Game.inventory[itemId] = 0;
+        Game.inventory[itemId] += count;
+    },
+    openCommunity: () => {
+        document.getElementById('community-overlay').style.display = 'block';
+    },
+    closeCommunity: () => {
+        document.getElementById('community-overlay').style.display = 'none';
+        ScenarioSys.run('after_community');
+    },
+    blueScreenEffect: () => {
+        AudioSys.playSFX('crash');
+        const screen = document.getElementById('game-screen');
+        screen.style.filter = 'invert(1) hue-rotate(180deg)';
+        setTimeout(() => {
+            screen.style.filter = 'none';
+            ScenarioSys.run('fake_intro');
+        }, 1500);
+    },
+    showFakeIntroText: () => {
+        const layer = document.getElementById('intro-layer');
+        layer.innerHTML = '';
+        layer.style.display = 'flex';
+        
+        const texts = [
+            "오래 전, 인간과 괴물, 두 종족이 세상을 다스렸습니다.",
+            "어느 날, 그들은 흔적도 남기지 않고 사라졌다."
+        ];
+        
+        texts.forEach((txt, idx) => {
+            const p = document.createElement('p');
+            p.className = 'intro-text-p';
+            p.innerText = txt;
+            layer.appendChild(p);
+            setTimeout(() => p.style.opacity = 1, 1000 + (idx * 3000));
+        });
+
+        setTimeout(() => {
+            layer.style.display = 'none';
+            ScenarioSys.run('marill_monologue');
+        }, 8000);
+    },
+    showCredits: () => {
+        AudioSys.playBGM('ending');
+        const layer = document.getElementById('intro-layer');
+        layer.innerHTML = '';
+        layer.style.display = 'flex';
+        layer.innerHTML = `
+            <h1 style="color:yellow; margin-bottom:50px;">[ 챕터 1 종료 ]</h1>
+            <p style="font-size:20px; color:#aaa; line-height:2;">
+                스토리: 곽승제, 전서완, 윤하진<br>
+                프로그래밍: 고구 맛탕 엔진 v3.0 (Extended)<br>
+                Special Thanks to: 파아뤼체, 좆로<br><br>
+                감사합니다.
+            </p>
+            <button onclick="location.reload()" style="margin-top:50px; padding:10px; cursor:pointer;">처음으로</button>
+        `;
+    }
+};
+
+const Input = {
+    keys: { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false },
+    init: () => {
+        window.addEventListener('keydown', e => {
+            if(Input.keys.hasOwnProperty(e.key)) Input.keys[e.key] = true;
+            if(e.key.toLowerCase() === 'z') {
+                SoundGen.playConfirmSound();
+                Input.handleConfirm();
+            }
+            if(e.key.toLowerCase() === 'x') Input.handleSkip();
+        });
+        window.addEventListener('keyup', e => {
+            if(Input.keys.hasOwnProperty(e.key)) Input.keys[e.key] = false;
+        });
+    },
+    handleConfirm: () => {
+        if(Game.state === 1) ScenarioSys.next();
+        else if(Game.state === 2) FieldSys.interact();
+    },
+    handleSkip: () => {
+        if(Game.state === 1 && ScenarioSys.typing) ScenarioSys.finishTyping();
+    }
+};
+
+const ScenarioSys = {
+    script: [], idx: 0, typing: false, timer: null, fullText: '',
+    run: (id) => {
+        if(!SCENARIOS[id]) return console.error('Scenario not found:', id);
+        ScenarioSys.script = SCENARIOS[id];
+        ScenarioSys.idx = 0;
+        Game.state = 1;
+        document.getElementById('field-layer').style.display = 'none';
+        document.getElementById('battle-layer').style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'block';
+        ScenarioSys.next();
+    },
+    next: () => {
+        if(Game.state !== 1) return;
+        if(ScenarioSys.typing) { ScenarioSys.finishTyping(); return; }
+        if(ScenarioSys.idx >= ScenarioSys.script.length) return; 
+
+        const cmd = ScenarioSys.script[ScenarioSys.idx++];
+        
+        if(cmd.type === 'text') {
+            UISys.showDialogue(cmd.name, cmd.text, cmd.color);
+        } else if(cmd.type === 'bg') {
+            document.getElementById('bg-layer').style.backgroundImage = cmd.src === 'black' ? 'none' : `url('${getImg(cmd.src)}')`;
+            document.getElementById('bg-layer').style.backgroundColor = cmd.src === 'black' ? 'black' : 'transparent';
+            ScenarioSys.next();
+        } else if(cmd.type === 'char') {
+            const img = document.getElementById('char-img');
+            if(cmd.src) { img.src = getImg(cmd.src); img.style.display = 'block'; }
+            else { img.style.display = 'none'; }
+            ScenarioSys.next();
+        } else if(cmd.type === 'run') {
+            cmd.code(); ScenarioSys.next();
+        } else if(cmd.type === 'goto') {
+            ScenarioSys.run(cmd.next);
+        } else if(cmd.type === 'addItem') {
+            Game.addItem(cmd.id, cmd.count); ScenarioSys.next();
+        } else if(cmd.type === 'field') {
+            FieldSys.init(cmd.map);
+        } else if(cmd.type === 'battle') {
+            BattleSys.init(cmd.enemyId, cmd.bg, cmd.win, cmd.bgm, cmd.scriptedDeath);
+        } else if(cmd.type === 'bgm') {
+            AudioSys.playBGM(cmd.src); ScenarioSys.next();
+        } else if(cmd.type === 'stopBgm') {
+            AudioSys.stopBGM(); ScenarioSys.next();
+        } else if(cmd.type === 'sfx') {
+            AudioSys.playSFX(cmd.src); ScenarioSys.next();
+        } else if(cmd.type === 'wait') {
+            setTimeout(() => ScenarioSys.next(), cmd.time);
+        }
+    },
+    finishTyping: () => {
+        clearInterval(ScenarioSys.timer);
+        document.getElementById('dialogue-text').innerText = ScenarioSys.fullText;
+        ScenarioSys.typing = false;
+    }
+};
+
+const UISys = {
+    showDialogue: (name, text, color) => {
+        const box = document.getElementById('dialogue-box');
+        box.style.display = 'block';
+        document.getElementById('speaker-name').innerText = name || '';
+        document.getElementById('speaker-name').style.color = color || '#ffff00';
+        document.getElementById('dialogue-text').innerText = '';
+        
+        ScenarioSys.fullText = text;
+        ScenarioSys.typing = true;
+        let i = 0;
+        if(ScenarioSys.timer) clearInterval(ScenarioSys.timer);
+        ScenarioSys.timer = setInterval(() => {
+            document.getElementById('dialogue-text').innerText += text[i++];
+            SoundGen.playTextSound(); 
+            if(i >= text.length) ScenarioSys.finishTyping();
+        }, 30);
+    }
+};
+
+const FieldSys = {
+    mapData: [], 
+    player: { x: 100, y: 300, w: 60, h: 80, speed: 8 },
+    
+    init: (mapId) => {
+        Game.state = 2;
+        document.getElementById('dialogue-box').style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'none';
+        document.getElementById('field-layer').style.display = 'block';
+        document.getElementById('field-layer').innerHTML = '';
+        
+        document.getElementById('bg-layer').style.backgroundImage = `url('${getImg('bg_sewer')}')`;
+        document.getElementById('bg-layer').style.backgroundColor = 'transparent';
+
+        const pDiv = document.createElement('div');
+        pDiv.id = 'player-sprite';
+        pDiv.className = 'sprite';
+        pDiv.style.width = FieldSys.player.w + 'px'; 
+        pDiv.style.height = FieldSys.player.h + 'px';
+        pDiv.innerHTML = `<img src="${getImg('hero')}">`;
+        document.getElementById('field-layer').appendChild(pDiv);
+
+        FieldSys.mapData = [];
+        FieldSys.player.x = 50; // Reset player pos
+
+        if(mapId === 'sewer_map_1') {
+            FieldSys.addObject({ x: 600, y: 300, w: 60, h: 60, label: '쥐 상인', event: 'meet_merchant', img: getImg('rat_merchant') });
+        } else if(mapId === 'sewer_map_2') {
+             FieldSys.addObject({ x: 300, y: 400, w: 40, h: 40, label: '폰(분실물)', event: 'find_phone', img: getImg('item_phone') });
+        } else if(mapId === 'sewer_map_3') {
+             FieldSys.addObject({ x: 650, y: 250, w: 100, h: 100, label: '바퀴벌레', event: 'meet_cockroach', img: getImg('cockroach') });
+        } else if(mapId === 'sewer_map_cleared') {
+             FieldSys.addObject({ x: 700, y: 300, w: 50, h: 100, label: '???', event: 'meet_marill' });
+        }
+        
+        requestAnimationFrame(FieldSys.loop);
+    },
+    addObject: (obj) => {
+        FieldSys.mapData.push(obj);
+        const div = document.createElement('div');
+        div.className = 'sprite';
+        div.style.left = obj.x + 'px'; div.style.top = obj.y + 'px';
+        div.style.width = obj.w + 'px'; div.style.height = obj.h + 'px';
+        if(obj.img) div.innerHTML = `<img src="${obj.img}">`;
+        else div.style.border = '1px solid yellow'; 
+        
+        div.innerHTML += `<div class="object-label">${obj.label}</div>`;
+        document.getElementById('field-layer').appendChild(div);
+    },
+    interact: () => {
+        const p = FieldSys.player;
+        const target = FieldSys.mapData.find(o => 
+            Math.abs((p.x) - (o.x)) < 80 && Math.abs((p.y) - (o.y)) < 80
+        );
+        if(target && target.event) {
+            // Remove one-time objects
+            if(['find_phone', 'meet_merchant', 'meet_cockroach'].includes(target.event)) {
+                FieldSys.mapData = FieldSys.mapData.filter(x => x !== target);
+            }
+            ScenarioSys.run(target.event);
+        }
+    },
+    loop: () => {
+        if(Game.state !== 2) return;
+        const p = FieldSys.player;
+        if(Input.keys.ArrowUp && p.y > 0) p.y -= p.speed;
+        if(Input.keys.ArrowDown && p.y < 520) p.y += p.speed;
+        if(Input.keys.ArrowLeft && p.x > 0) p.x -= p.speed;
+        if(Input.keys.ArrowRight && p.x < 740) p.x += p.speed;
+        
+        const el = document.getElementById('player-sprite');
+        if(el) {
+            el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+            el.style.zIndex = Math.floor(p.y);
+        }
+        requestAnimationFrame(FieldSys.loop);
+    }
+};
+
+const BattleSys = {
+    enemy: null, winScenario: '', currentTurnIndex: 0, omegaTriggered: false,
+    init: (enemyId, bgSrc, winScen, bgmKey, scriptedDeath) => {
+        Game.state = 3;
+        Game.scriptedDeathScenario = scriptedDeath ? 'after_death' : null;
+        BattleSys.omegaTriggered = false;
+        
+        if(bgmKey) AudioSys.playBGM(bgmKey);
+
+        document.getElementById('ui-layer').style.display = 'block';
+        document.getElementById('dialogue-box').style.display = 'block';
+        document.getElementById('battle-layer').style.display = 'block';
+        document.getElementById('battle-bg').style.backgroundImage = bgSrc === 'black' ? 'none' : `url('${getImg(bgSrc)}')`;
+        document.getElementById('battle-bg').style.backgroundColor = bgSrc === 'black' ? 'black' : 'transparent';
+        document.getElementById('battle-menu-area').style.display = 'none';
+        
+        const eData = DB.enemies[enemyId];
+        BattleSys.enemy = { ...eData, maxHp: eData.hp };
+        BattleSys.winScenario = winScen;
+        
+        document.getElementById('enemy-name-disp').innerText = BattleSys.enemy.name;
+        document.getElementById('enemy-img').src = getImg(BattleSys.enemy.img);
+        BattleSys.updateEnemyHP();
+        BattleSys.renderParty();
+        
+        UISys.showDialogue('시스템', `${eData.name}이(가) 나타났다!`);
+        setTimeout(() => {
+            document.getElementById('dialogue-box').style.display = 'none';
+            BattleSys.startTurnCycle();
+        }, 1500);
+    },
+    renderParty: () => {
+        const container = document.getElementById('party-status');
+        container.innerHTML = '';
+        Game.party.forEach((member, idx) => {
+            const card = document.createElement('div');
+            card.className = `party-member-card`;
+            card.id = `party-card-${idx}`;
+            card.innerHTML = `
+                <div style="font-weight:bold; color:#ffff00">${member.name}</div>
+                <div class="stat-row"><span>HP</span> <span>${member.hp}/${member.maxHp}</span></div>
+                <div class="stat-row"><span>MP</span> <span>${member.mp}/${member.maxMp}</span></div>
+            `;
+            container.appendChild(card);
+        });
+    },
+    updateEnemyHP: () => {
+        const pct = Math.max(0, (BattleSys.enemy.hp / BattleSys.enemy.maxHp) * 100);
+        document.getElementById('enemy-hp-bar').style.width = pct + '%';
+    },
+    startTurnCycle: () => {
+        BattleSys.currentTurnIndex = -1;
+        BattleSys.nextPartyTurn();
+    },
+    nextPartyTurn: () => {
+        if(BattleSys.enemy.id === 'marill_omega' && !BattleSys.omegaTriggered && BattleSys.enemy.hp <= 150) {
+            BattleSys.triggerOmegaKillerMove();
+            return;
+        }
+
+        BattleSys.currentTurnIndex++;
+        if(BattleSys.currentTurnIndex >= Game.party.length) {
+            BattleSys.processEnemyTurn();
+            return;
+        }
+        const member = Game.party[BattleSys.currentTurnIndex];
+        if(member.hp <= 0) { BattleSys.nextPartyTurn(); return; }
+
+        document.querySelectorAll('.party-member-card').forEach(c => c.classList.remove('active-turn'));
+        document.getElementById(`party-card-${BattleSys.currentTurnIndex}`).classList.add('active-turn');
+        
+        document.getElementById('battle-menu-area').style.display = 'flex';
+        BattleSys.showMainMenu();
+    },
+    showMainMenu: () => {
+        document.getElementById('battle-main-menu').style.display = 'grid'; 
+        document.getElementById('battle-sub-menu').style.display = 'none';
+    },
+    selectAction: (type) => {
+        SoundGen.playConfirmSound();
+        const member = Game.party[BattleSys.currentTurnIndex];
+        const subMenu = document.getElementById('battle-sub-menu');
+        
+        if(type === 'attack') {
+            BattleSys.executePlayerAction({ type: 'damage', power: member.atk, name: '공격' });
+        } else if(type === 'run') {
+            UISys.showDialogue(member.name, "도망은 비겁자들이나 하는것.");
+            document.getElementById('battle-menu-area').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('dialogue-box').style.display = 'none';
+                document.getElementById('battle-menu-area').style.display = 'flex';
+                BattleSys.showMainMenu();
+            }, 1500);
+        } else {
+            document.getElementById('battle-main-menu').style.display = 'none';
+            subMenu.style.display = 'grid';
+            subMenu.innerHTML = `<button class="b-btn" style="width:100%;" onclick="SoundGen.playConfirmSound(); BattleSys.showMainMenu()">🔙 뒤로가기</button>`;
+            
+            if(type === 'skill') {
+                member.skills.forEach(skillId => {
+                    const skill = DB.skills[skillId];
+                    const btn = document.createElement('button');
+                    btn.className = 'b-btn'; btn.style.width = '100%';
+                    btn.innerHTML = `${skill.name} (${skill.cost}MP)`;
+                    if(member.mp < skill.cost) btn.disabled = true;
+                    btn.onclick = () => {
+                        SoundGen.playConfirmSound();
+                        member.mp -= skill.cost;
+                        BattleSys.renderParty();
+                        BattleSys.executePlayerAction({ ...skill, isSkill: true });
+                    };
+                    subMenu.appendChild(btn);
+                });
+            } else if(type === 'item') {
+                const itemKeys = Object.keys(Game.inventory).filter(k => Game.inventory[k] > 0);
+                if(itemKeys.length === 0) {
+                    subMenu.innerHTML += `<div style="padding:10px; text-align:center;">아이템이 없습니다.</div>`;
+                } else {
+                    itemKeys.forEach(itemId => {
+                        const itemData = DB.items[itemId];
+                        const btn = document.createElement('button');
+                        btn.className = 'b-btn'; btn.style.width = '100%';
+                        btn.innerHTML = `${itemData.name} (x${Game.inventory[itemId]})`;
+                        btn.onclick = () => {
+                            SoundGen.playConfirmSound();
+                            Game.inventory[itemId]--;
+                            BattleSys.executePlayerAction({ ...itemData, isItem: true });
+                        };
+                        subMenu.appendChild(btn);
+                    });
+                }
+            }
+        }
+    },
+    executePlayerAction: (action) => {
+        document.getElementById('battle-menu-area').style.display = 'none';
+        const member = Game.party[BattleSys.currentTurnIndex];
+        
+        UISys.showDialogue(member.name, `${action.name} 사용!`);
+        setTimeout(() => {
+            if(action.type === 'damage') {
+                let dmg = Math.floor(action.value || action.power);
+                if(action.isSkill) dmg = Math.floor(dmg * (1 + Math.random()*0.2));
+                
+                BattleSys.enemy.hp -= dmg;
+                BattleSys.showDamage(dmg, false);
+                document.getElementById('game-screen').classList.add('fx-shake');
+                setTimeout(()=>document.getElementById('game-screen').classList.remove('fx-shake'), 400);
+            } else if(action.type === 'heal') {
+                member.hp = Math.min(member.maxHp, member.hp + action.value);
+                UISys.showDialogue('시스템', `체력을 ${action.value} 회복했다!`);
+            }
+
+            BattleSys.updateEnemyHP();
+            BattleSys.renderParty();
+
+            if(BattleSys.enemy.hp <= 0) setTimeout(BattleSys.winBattle, 1000);
+            else setTimeout(() => {
+                document.getElementById('dialogue-box').style.display = 'none';
+                BattleSys.nextPartyTurn();
+            }, 1000);
+        }, 800);
+    },
+    triggerOmegaKillerMove: () => {
+        BattleSys.omegaTriggered = true;
+        document.querySelectorAll('.party-member-card').forEach(c => c.classList.remove('active-turn'));
+        document.getElementById('battle-menu-area').style.display = 'none';
+        
+        UISys.showDialogue('오메가 마릴리', '놀아주는 건 여기서 끝이다!');
+        setTimeout(() => {
+            const screen = document.getElementById('game-screen');
+            screen.classList.add('fx-flash');
+            
+            Game.party.forEach(m => m.hp = 0);
+            BattleSys.renderParty();
+            BattleSys.showDamage(9999999, true);
+
+            setTimeout(() => {
+                screen.classList.remove('fx-flash');
+                UISys.showDialogue('시스템', '파티가 전멸했습니다...');
+                setTimeout(() => {
+                    document.getElementById('battle-layer').style.display = 'none';
+                    ScenarioSys.run('after_death');
+                }, 2000);
+            }, 500);
+        }, 2000);
+    },
+    processEnemyTurn: () => {
+        document.querySelectorAll('.party-member-card').forEach(c => c.classList.remove('active-turn'));
+        
+        UISys.showDialogue(BattleSys.enemy.name, '공격을 준비한다...');
+        setTimeout(() => {
+            const aliveMembers = Game.party.filter(m => m.hp > 0);
+            if(aliveMembers.length === 0) return;
+            const target = aliveMembers[Math.floor(Math.random() * aliveMembers.length)];
+
+            let dmg = Math.floor(BattleSys.enemy.atk * (0.8 + Math.random()*0.4));
+            target.hp -= dmg;
+            if(target.hp < 0) target.hp = 0;
+
+            document.getElementById('battle-layer').classList.add('fx-flash');
+            setTimeout(()=>document.getElementById('battle-layer').classList.remove('fx-flash'), 200);
+
+            BattleSys.renderParty();
+            BattleSys.showDamage(dmg, true); 
+            
+            UISys.showDialogue('시스템', `${target.name}에게 ${dmg}의 피해!`);
+            
+            setTimeout(() => {
+                if(Game.party.every(m => m.hp <= 0)) {
+                    alert('게임 오버 (다시 시작하려면 새로고침)');
+                } else {
+                    document.getElementById('dialogue-box').style.display = 'none';
+                    BattleSys.startTurnCycle();
+                }
+            }, 1000);
+        }, 1500);
+    },
+    winBattle: () => {
+        UISys.showDialogue('시스템', '승리했습니다!');
+        setTimeout(() => {
+            document.getElementById('battle-layer').style.display = 'none';
+            ScenarioSys.run(BattleSys.winScenario);
+        }, 2000);
+    },
+    showDamage: (val, isPlayer) => {
+        const popup = document.createElement('div');
+        popup.className = 'damage-popup';
+        popup.innerText = val;
+        popup.style.top = isPlayer ? '400px' : '200px';
+        popup.style.left = '50%';
+        document.getElementById('battle-layer').appendChild(popup);
+        setTimeout(() => popup.remove(), 1000);
+    }
+};
+
+document.getElementById('btn-start').onclick = () => {
+    AudioSys.init();
+    SoundGen.init();
+    document.getElementById('start-screen').style.display = 'none';
+    SoundGen.playConfirmSound();
+    Input.init();
+    ScenarioSys.run('intro');
+};
+</script>
+</body>
+</html>
